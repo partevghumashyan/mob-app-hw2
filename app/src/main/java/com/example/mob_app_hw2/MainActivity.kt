@@ -1,9 +1,15 @@
 package com.example.mob_app_hw2
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,39 +30,76 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavHost
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.mob_app_hw2.ui.theme.Mobapphw2Theme
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.IconButton
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.GET
+import retrofit2.http.Query
+import java.util.Locale
 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            Mobapphw2Theme {
-                // A surface container using the 'background' color from the theme
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    MyApp()
+            MyApp()
+        }
+    }
+
+    @Composable
+    fun MyApp() {
+
+        val navController = rememberNavController()
+
+        NavHost(
+            navController = navController,
+            startDestination = "welcome"
+        ) {
+            composable("welcome") {
+                WelcomeScreen(navController)
+            }
+            composable("cityList") {
+                CityListScreen(navController)
+            }
+            composable("cityDetails/{city}") { // Make sure the route includes the parameter
+                    backStackEntry ->
+                val city = backStackEntry.arguments?.getString("city")
+                val viewModelFactory = WeatherApiViewModelFactory(city = city.toString())
+                val viewModel = ViewModelProvider(ViewModelStore(), viewModelFactory)[WeatherApiViewModel::class.java]
+                if (city != null) {
+                    CityDetailsScreen(city = city, navController, viewModel)
                 }
             }
         }
@@ -64,31 +107,64 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MyApp() {
-    val navController = rememberNavController()
+fun WelcomeScreen(navController: NavHostController) {
+    val context = LocalContext.current
+    var cityName by remember { mutableStateOf("") }
+    val fusedLocationClient: FusedLocationProviderClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
-    NavHost(
-        navController = navController,
-        startDestination = "welcome"
-    ) {
-        composable("welcome") {
-            WelcomeScreen(navController)
-        }
-        composable("cityList") {
-            CityListScreen(navController)
-        }
-        composable("cityDetails/{city}") { // Make sure the route includes the parameter
-                backStackEntry ->
-            val city = backStackEntry.arguments?.getString("city")
-            if (city != null) {
-                CityDetailsScreen(city = city, navController)
+
+    // Use the requestPermission contract to request location permission
+    val requestPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (isGranted) {
+                println("inside granted")
+            }else {
+                // Permission denied, handle accordingly
+                // TODO: Add your logic for denied permission
             }
         }
-    }
-}
 
-@Composable
-fun WelcomeScreen(navController: NavHostController) {
+//    // Request location permission on app startup
+    DisposableEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    // Use reverse geocoding to get the city name from the location
+                    val geocoder = Geocoder(context, Locale.getDefault())
+                    val addresses = geocoder.getFromLocation(
+                        location.latitude,
+                        location.longitude,
+                        1
+                    )
+
+                    if (addresses != null) {
+                        if (addresses.isNotEmpty()) {
+                            cityName = addresses[0].locality
+                            // Do something with the city name
+                        }
+                    }
+                }
+                // Permission granted, you can now access the user's location
+                // TODO: Add your location-related logic here
+            }
+            // Permission already granted, you can now access the user's location
+            // TODO: Add your location-related logic here
+        } else {
+            // Request location permission
+            requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
+        // Dispose the effect to run only once on app startup
+        onDispose { }
+    }
+
+    val viewModelFactory = WeatherApiViewModelFactory(city = cityName)
+    val viewModel = ViewModelProvider(ViewModelStore(), viewModelFactory)[WeatherApiViewModel::class.java]
+    val weatherInfo by viewModel.weatherInfo.observeAsState()
+    val temp = weatherInfo?.current?.temp_c
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -118,6 +194,12 @@ fun WelcomeScreen(navController: NavHostController) {
         ) {
             Text(text = "Get Started")
         }
+        Text(
+            text = "Temperature: $temp °C",
+            style = TextStyle(fontSize = 20.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -205,19 +287,19 @@ val cityDescriptionMap = mapOf(
     "Washington" to "Washington, D.C., formally the District of Columbia and commonly called Washington or D.C., is the capital city and the federal district of the United States. The city is located on the east bank of the Potomac River, which forms its southwestern border with Virginia and borders Maryland to its north and east. Washington, D.C. was named for George Washington, a Founding Father, victorious commanding general of the Continental Army in the American Revolutionary War, and the first president of the United States who is widely considered the \"Father of his country\". The district is named for Columbia, the female personification of the nation.",
     "Madrid" to "Madrid is the capital and most populous city of Spain. The city has almost 3.4 million inhabitants and a metropolitan area population of approximately 6.7 million. It is the second-largest city in the European Union (EU), and its monocentric metropolitan area is the second-largest in the EU. The municipality covers 604.3 km2 (233.3 sq mi) geographical area. Madrid lies on the River Manzanares in the central part of the Iberian Peninsula at about 650 metres above mean sea level. Capital city of both Spain and the surrounding autonomous community of Madrid (since 1983), it is also the political, economic and cultural centre of the country. The climate of Madrid features hot summers and cool winters.",
     "Moscow" to "Moscow is the capital and largest city of Russia. The city stands on the Moskva River in Central Russia, with a population estimated at 13.0 million residents within the city limits, over 18.8 million residents in the urban area, and over 21.5 million residents in the metropolitan area. The city covers an area of 2,511 square kilometers (970 sq mi), while the urban area covers 5,891 square kilometers (2,275 sq mi), and the metropolitan area covers over 26,000 square kilometers (10,000 sq mi). Moscow is among the world's largest cities, being the most populous city entirely in Europe, the largest urban and metropolitan area in Europe, and the largest city by land area on the European continent.",
-    "Lisbon" to "Lisbon is the capital and largest city of Portugal, with an estimated population of 548,703 within its administrative limits in an area of 100.05 km2.\n" + "\n" + "About 2.9 million people live in the Lisbon metropolitan area, which extends beyond the city's administrative area, making it the third largest metropolitan area in the Iberian Peninsula, after Madrid and Barcelona as well as the 11th-most populous urban area in the European Union. It represents approximately 27.7% of the country's population.\n" + "\n" + "Lisbon is mainland Europe's westernmost capital city (second overall after Reykjavik) and the only one along the Atlantic coast, the others (Reykjavik and Dublin) being on islands.\n" + "\n" + "The city lies in the western portion of the Iberian Peninsula on River Tagus. The westernmost portions of its metro area, the Portuguese Riviera, hosts the westernmost point of Continental Europe, culminating at Cabo da Roca.",
-    "London" to "London is the capital and largest city of England and the United Kingdom, with a population of around 8.8 million. It stands on the River Thames in south-east England at the head of a 50-mile (80 km) estuary down to the North Sea and has been a major settlement for nearly two millennia. The City of London, its ancient core and financial centre, was founded by the Romans as Londinium and retains its medieval boundaries. The City of Westminster, to the west of the City of London, has for centuries hosted the national government and parliament. Since the 19th century, the name \"London\" also refers to the metropolis around this core, historically split among the counties of Middlesex, Essex, Surrey, Kent, and Hertfordshire, which since 1965 has largely comprised Greater London, which is governed by 33 local authorities and the Greater London Authority.",
+    "Lisbon" to "Lisbon is the capital and largest city of Portugal, with an estimated population of 548,703 within its administrative limits in an area of 100.05 km2.\n" + "\n" + "About 2.9 million people live in the Lisbon metropolitan area, which extends beyond the city's administrative area, making it the third largest metropolitan area in the Iberian Peninsula, after Madrid and Barcelona as well as the 11th-most populous urban area in the European Union. It represents approximately 27.7% of the country's population.\n" + "\n" + "Lisbon is mainland Europe's westernmost capital city (second overall after Reykjavik) and the only one along the Atlantic coast, the others (Reykjavik and Dublin) being on islands.\n",
+    "London" to "London is the capital and largest city of England and the United Kingdom, with a population of around 8.8 million. It stands on the River Thames in south-east England at the head of a 50-mile (80 km) estuary down to the North Sea and has been a major settlement for nearly two millennia. The City of London, its ancient core and financial centre, was founded by the Romans as Londinium and retains its medieval boundaries. The City of Westminster, to the west of the City of London, has for centuries hosted the national government and parliament.",
     "Berlin" to "Berlin is the capital and largest city of Germany by both area and population. Its more than 3.85 million inhabitants make it the European Union's most populous city, according to population within city limits. One of Germany's sixteen constituent states, Berlin is surrounded by the State of Brandenburg and contiguous with Potsdam, Brandenburg's capital. Berlin's urban area, which has a population of around 4.5 million, is the most populous urban area in Germany. The Berlin-Brandenburg capital region has around 6.2 million inhabitants and is Germany's second-largest metropolitan region after the Rhine-Ruhr region.",
 
     // Add more city-image mappings as needed
 )
 
-
 @Composable
-fun CityDetailsScreen(city: String, navController: NavHostController) {
+fun CityDetailsScreen(city: String, navController: NavHostController, viewModel: WeatherApiViewModel) {
     // For simplicity, we'll display a static description and image for demonstration purposes.
     val imageResource = cityImageMap[city]
     val cityDescription = cityDescriptionMap[city]
+    val weatherInfo by viewModel.weatherInfo.observeAsState()
 
     Column(
         modifier = Modifier
@@ -259,7 +341,9 @@ fun CityDetailsScreen(city: String, navController: NavHostController) {
             Image(
                 painter = imagePainter,
                 contentDescription = "City Image",
-                modifier = Modifier.fillMaxWidth().height(200.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
             )
         }
 
@@ -279,17 +363,91 @@ fun CityDetailsScreen(city: String, navController: NavHostController) {
             )
         }
 
+        if (weatherInfo != null) {
+            val temp = weatherInfo!!.current.temp_c
+            Text(
+                text = "Temperature: $temp °C",
+                style = TextStyle(fontSize = 20.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+                )
+        }else{
+            Text(
+                text = "Temperature not defined",
+                style = TextStyle(fontSize = 16.sp),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
         BackHandler {
             navController.popBackStack()
         }
     }
 }
 
+class WeatherApiViewModel(private val city: String) : ViewModel() {
+    private val weatherApiService = RetrofitClient.weatherApiService
 
-@Preview(showBackground = true)
-@Composable
-fun WelcomeScreenPreview() {
-    Mobapphw2Theme {
-        MyApp()
+    private val _weatherInfo = MutableLiveData<WeatherInfo>()
+    val weatherInfo: LiveData<WeatherInfo> get() = _weatherInfo
+
+    init {
+        viewModelScope.launch {
+            try {
+                val response = weatherApiService.getWeatherInfo(city)
+
+                _weatherInfo.value = response
+            } catch (e: Exception) {
+                Log.e("Retrofit", "Error fetching user data", e)
+            }
+        }
     }
+}
+
+class WeatherApiViewModelFactory(private val city: String) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(WeatherApiViewModel::class.java)) {
+            return WeatherApiViewModel(city) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+object RetrofitClient {
+    private const val BASE_URL = "https://api.weatherapi.com/v1/"
+    private const val API_KEY = "c6a6b640146a4cc59f281844231211"
+
+    private val retrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(
+                OkHttpClient.Builder()
+                    .addInterceptor { chain ->
+                        val original = chain.request()
+                        val requestBuilder = original.newBuilder()
+                            .header("key", API_KEY)
+                        val request = requestBuilder.build()
+                        chain.proceed(request)
+                    }
+                    .build()
+            )
+            .build()
+    }
+
+    val weatherApiService: WeatherApiService by lazy {
+        retrofit.create(WeatherApiService::class.java)
+    }
+}
+
+data class WeatherInfo(
+    val current: CurrentWeather,
+)
+
+data class CurrentWeather(
+    val temp_c: Double,
+)
+
+interface WeatherApiService {
+    @GET("current.json")
+    suspend fun getWeatherInfo(@Query("q") city: String): WeatherInfo
 }
