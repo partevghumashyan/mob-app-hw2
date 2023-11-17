@@ -146,11 +146,7 @@ fun WelcomeScreen(navController: NavHostController) {
                         }
                     }
                 }
-                // Permission granted, you can now access the user's location
-                // TODO: Add your location-related logic here
             }
-            // Permission already granted, you can now access the user's location
-            // TODO: Add your location-related logic here
         } else {
             // Request location permission
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -194,12 +190,14 @@ fun WelcomeScreen(navController: NavHostController) {
         ) {
             Text(text = "Get Started")
         }
-        Text(
-            text = "Temperature: $temp °C",
-            style = TextStyle(fontSize = 20.sp),
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Bold,
-        )
+        if (temp != null) {
+            Text(
+                text = "Temperature: $temp °C",
+                style = TextStyle(fontSize = 20.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -371,13 +369,8 @@ fun CityDetailsScreen(city: String, navController: NavHostController, viewModel:
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
                 )
-        }else{
-            Text(
-                text = "Temperature not defined",
-                style = TextStyle(fontSize = 16.sp),
-                color = MaterialTheme.colorScheme.onSurface
-            )
         }
+
         BackHandler {
             navController.popBackStack()
         }
