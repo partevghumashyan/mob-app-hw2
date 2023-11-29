@@ -71,4 +71,16 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    implementation("androidx.activity:activity-compose:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:1.0.0-alpha07")
+    implementation("androidx.lifecycle:lifecycle-livedata:2.4.0-rc01")
+    implementation("androidx.lifecycle:lifecycle-viewmodel:2.4.0-rc01")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("androidx.compose.runtime:runtime-livedata:1.0.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.4.0")
+    implementation("com.google.android.gms:play-services-location:18.0.0")
+    implementation ("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.0")
+
+
 }
