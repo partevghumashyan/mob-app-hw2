@@ -6,4 +6,9 @@ data class WeatherInfo(
 
 data class CurrentWeather(
     val temp_c: Double,
+    val humidity: Int
 )
+
+enum class TemperatureUnit {
+    CELSIUS, FAHRENHEIT
+}

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -31,9 +32,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.mob_app_hw2.constants.CITY_LIST_ROUTE
 import com.example.mob_app_hw2.constants.WELCOME_TEXT
+import com.example.mob_app_hw2.model.TemperatureUnit
+import com.example.mob_app_hw2.viewmodel.SettingsViewModel
 import com.example.mob_app_hw2.viewmodel.WeatherApiViewModel
 import com.example.mob_app_hw2.viewmodel.WeatherApiViewModelFactory
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -41,24 +45,25 @@ import com.google.android.gms.location.LocationServices
 import java.util.Locale
 
 @Composable
-fun WelcomeScreen(navController: NavHostController) {
+fun WelcomeScreen(navController: NavHostController, settingsViewModel: SettingsViewModel = viewModel()) {
     val context = LocalContext.current
     var cityName by remember { mutableStateOf("") }
-    val fusedLocationClient: FusedLocationProviderClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    var cityInfo by remember { mutableStateOf("") }
 
+    val fusedLocationClient: FusedLocationProviderClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     // Use the requestPermission contract to request location permission
     val requestPermissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
                 println("inside granted")
-            }else {
+            } else {
                 // Permission denied, handle accordingly
                 // TODO: Add your logic for denied permission
             }
         }
 
-//    // Request location permission on app startup
+    // Request location permission on app startup
     DisposableEffect(Unit) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             == PackageManager.PERMISSION_GRANTED
@@ -76,6 +81,7 @@ fun WelcomeScreen(navController: NavHostController) {
                     if (addresses != null) {
                         if (addresses.isNotEmpty()) {
                             cityName = addresses[0].locality
+                            cityInfo = addresses[0].countryName + ", " + addresses[0].adminArea + ", " + cityName
                             // Do something with the city name
                         }
                     }
@@ -94,6 +100,7 @@ fun WelcomeScreen(navController: NavHostController) {
     val viewModel = ViewModelProvider(ViewModelStore(), viewModelFactory)[WeatherApiViewModel::class.java]
     val weatherInfo by viewModel.weatherInfo.observeAsState()
     val temp = weatherInfo?.current?.temp_c
+    val convertedTemp = temp?.let { settingsViewModel.convertTemperature(it) }
 
     Column(
         modifier = Modifier
@@ -124,13 +131,60 @@ fun WelcomeScreen(navController: NavHostController) {
         ) {
             Text(text = "Get Started")
         }
-        if (temp != null) {
+        if (convertedTemp != null) {
+            val temperatureText = buildString {
+                append("Temperature: ")
+                append(convertedTemp)
+                if (settingsViewModel.temperatureUnit.value == TemperatureUnit.FAHRENHEIT) {
+                    append(" °F")
+                } else {
+                    append(" °C")
+                }
+            }
             Text(
-                text = "Temperature: $temp °C",
+                text = temperatureText,
                 style = TextStyle(fontSize = 20.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
             )
         }
+
+        // Show current location information
+        CurrentLocationSection(cityInfo = cityInfo)
+
+        Button(
+            onClick = {
+                navController.navigate("settings")
+            }
+        ) {
+            Text(text = "Go to Settings")
+        }
+    }
+}
+
+@Composable
+fun CurrentLocationSection(cityInfo: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Your Current Location:",
+            style = TextStyle(
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = cityInfo.takeIf { it.isNotBlank() } ?: "Location not available",
+            style = TextStyle(fontSize = 16.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }

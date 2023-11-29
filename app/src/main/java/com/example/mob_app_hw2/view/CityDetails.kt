@@ -26,15 +26,18 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.mob_app_hw2.constants.CITY_LIST_ROUTE
 import com.example.mob_app_hw2.constants.DEFAULT_CITY_DESCRIPTION
 import com.example.mob_app_hw2.data.cityDescriptionMap
 import com.example.mob_app_hw2.data.cityImageMap
+import com.example.mob_app_hw2.model.TemperatureUnit
+import com.example.mob_app_hw2.viewmodel.SettingsViewModel
 import com.example.mob_app_hw2.viewmodel.WeatherApiViewModel
 
 @Composable
-fun CityDetailsScreen(city: String, navController: NavHostController, viewModel: WeatherApiViewModel) {
+fun CityDetailsScreen(city: String, navController: NavHostController, viewModel: WeatherApiViewModel, settingsViewModel: SettingsViewModel) {
     // For simplicity, we'll display a static description and image for demonstration purposes.
     val imageResource = cityImageMap[city]
     val cityDescription = cityDescriptionMap[city]
@@ -103,14 +106,37 @@ fun CityDetailsScreen(city: String, navController: NavHostController, viewModel:
         }
 
         if (weatherInfo != null) {
-            val temp = weatherInfo!!.current.temp_c
-            Text(
-                text = "Temperature: $temp °C",
-                style = TextStyle(fontSize = 20.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold,
-            )
+            val tempCelsius = weatherInfo!!.current.temp_c
+            val convertedTemp = settingsViewModel.convertTemperature(tempCelsius)
+
+            val humidity = weatherInfo!!.current.humidity
+            if (convertedTemp != null) {
+                val temperatureText = buildString {
+                    append("Temperature: ")
+                    append(convertedTemp)
+                    if (settingsViewModel.temperatureUnit.value == TemperatureUnit.FAHRENHEIT) {
+                        append(" °F")
+                    } else {
+                        append(" °C")
+                    }
+                }
+
+                Text(
+                    text = temperatureText,
+                    style = TextStyle(fontSize = 20.sp),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                )
+            } else if (humidity != null) {
+                Text(
+                    text = "Humidity: $humidity",
+                    style = TextStyle(fontSize = 20.sp),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
+
 
         BackHandler {
             navController.popBackStack()
