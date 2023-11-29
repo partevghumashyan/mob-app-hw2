@@ -80,6 +80,7 @@ dependencies {
     implementation("androidx.compose.runtime:runtime-livedata:1.0.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.4.0")
     implementation("com.google.android.gms:play-services-location:18.0.0")
+    implementation ("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.0")
 
 
 }
